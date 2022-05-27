@@ -1,19 +1,19 @@
-specVersion: 0.0.2
-description: Generic ERC721 Subgraph (Transfers, Metadata)
-repository: https://github.com/schmidsi/generic-erc721-subgraph
+specVersion: 0.0.5
+description: ERC721 Subgraph (Transfers, Metadata)
+repository: https://github.com/sunny0714/madnfts-subgraph
 schema:
   file: ./schema.graphql
 dataSources:
   - kind: ethereum/contract
-    name: Hashmasks # Change me
+    name: ERC721
     network: mainnet
     source:
-      address: '0xC2C747E0F7004F9E8817Db2ca4997657a7746928' # Change me
+      address: '0x53358dB1825EFEed349915e31298aB464637b0E4'
       abi: ERC721
-      startBlock: 11743743 # Change me
+      startBlock: 10581501
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.4
+      apiVersion: 0.0.5
       language: wasm/assemblyscript
       entities:
         - Token
