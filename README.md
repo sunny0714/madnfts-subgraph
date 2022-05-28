@@ -13,6 +13,7 @@ Feel free to extend the [`schema.graphql`](./schema.graphql) and the
 yarn install
 yarn codegen
 yarn build
+graph auth
 yarn deploy
 ```
 
