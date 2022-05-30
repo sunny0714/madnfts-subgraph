@@ -1,6 +1,10 @@
 import { log, BigInt } from '@graphprotocol/graph-ts';
 import { ERC721, Transfer as TransferEvent } from '../generated/ERC721/ERC721';
 import { Token, Account, Contract, Transfer } from '../generated/schema';
+import {
+  BIGINT_ZERO,
+  BIGINT_ONE
+} from './constant';
 
 export function handleTransfer(event: TransferEvent): void {
   log.debug('Transfer detected. From: {} | To: {} | TokenID: {}', [
@@ -22,20 +26,20 @@ export function handleTransfer(event: TransferEvent): void {
   if (previousOwner == null) {
     previousOwner = new Account(event.params.from.toHexString());
 
-    previousOwner.balance = BigInt.fromI32(0);
+    previousOwner.balance = BIGINT_ZERO;
   } else {
     let prevBalance = previousOwner.balance;
-    if (prevBalance > BigInt.fromI32(0)) {
-      previousOwner.balance = prevBalance - BigInt.fromI32(1);
+    if (prevBalance > BIGINT_ZERO) {
+      previousOwner.balance = prevBalance - BIGINT_ONE;
     }
   }
 
   if (newOwner == null) {
     newOwner = new Account(event.params.to.toHexString());
-    newOwner.balance = BigInt.fromI32(1);
+    newOwner.balance = BIGINT_ONE;
   } else {
     let prevBalance = newOwner.balance;
-    newOwner.balance = prevBalance + BigInt.fromI32(1);
+    newOwner.balance = prevBalance + BIGINT_ONE;
   }
 
   if (token == null) {
