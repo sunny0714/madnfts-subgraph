@@ -1,14 +1,14 @@
 type Token @entity {
   id: ID!
-  owner: Owner
+  account: Account
   uri: String
   transfers: [Transfer!]! @derivedFrom(field: "token")
   contract: Contract
 }
 
-type Owner @entity {
+type Account @entity {
   id: ID!
-  ownedTokens: [Token!]! @derivedFrom(field: "owner")
+  ownedTokens: [Token!]! @derivedFrom(field: "account")
   balance: BigInt
 }
 
@@ -24,9 +24,9 @@ type Transfer @entity {
   id: ID!
   token: Token!
   # Empty from is minting
-  from: Owner
+  from: Account
   # Empty to is burning
-  to: Owner
+  to: Account
   timestamp: BigInt!
   block: BigInt!
   transactionHash: String!

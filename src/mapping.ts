@@ -1,6 +1,6 @@
 import { log, BigInt } from '@graphprotocol/graph-ts';
 import { ERC721, Transfer as TransferEvent } from '../generated/ERC721/ERC721';
-import { Token, Owner, Contract, Transfer } from '../generated/schema';
+import { Token, Account, Contract, Transfer } from '../generated/schema';
 
 export function handleTransfer(event: TransferEvent): void {
   log.debug('Transfer detected. From: {} | To: {} | TokenID: {}', [
@@ -9,8 +9,8 @@ export function handleTransfer(event: TransferEvent): void {
     event.params.tokenId.toHexString(),
   ]);
 
-  let previousOwner = Owner.load(event.params.from.toHexString());
-  let newOwner = Owner.load(event.params.to.toHexString());
+  let previousOwner = Account.load(event.params.from.toHexString());
+  let newOwner = Account.load(event.params.to.toHexString());
   let token = Token.load(event.params.tokenId.toHexString());
   let transferId = event.transaction.hash
     .toHexString()
@@ -20,7 +20,7 @@ export function handleTransfer(event: TransferEvent): void {
   let instance = ERC721.bind(event.address);
 
   if (previousOwner == null) {
-    previousOwner = new Owner(event.params.from.toHexString());
+    previousOwner = new Account(event.params.from.toHexString());
 
     previousOwner.balance = BigInt.fromI32(0);
   } else {
@@ -31,7 +31,7 @@ export function handleTransfer(event: TransferEvent): void {
   }
 
   if (newOwner == null) {
-    newOwner = new Owner(event.params.to.toHexString());
+    newOwner = new Account(event.params.to.toHexString());
     newOwner.balance = BigInt.fromI32(1);
   } else {
     let prevBalance = newOwner.balance;
@@ -48,7 +48,7 @@ export function handleTransfer(event: TransferEvent): void {
     }
   }
 
-  token.owner = event.params.to.toHexString();
+  token.account = event.params.to.toHexString();
 
   if (transfer == null) {
     transfer = new Transfer(transferId);
