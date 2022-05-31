@@ -1,91 +1,244 @@
-import { log, BigInt } from '@graphprotocol/graph-ts';
-import { ERC721, Transfer as TransferEvent } from '../generated/ERC721/ERC721';
-import { Token, Account, Contract, Transfer } from '../generated/schema';
 import {
-  BIGINT_ZERO,
-  BIGINT_ONE
-} from './constant';
+	ethereum,
+	BigInt,
+} from '@graphprotocol/graph-ts'
+
+import {
+	Account,
+	ERC721Transfer,
+	ERC1155Contract,
+	ERC1155Transfer,
+} from '../generated/schema'
+
+import {
+	Approval       as ApprovalEvent,
+	ApprovalForAll as ApprovalForAllEvent,
+	Transfer       as TransferEvent,
+} from '../generated/ERC721/ERC721'
+
+import {
+	ApprovalForAll as ApprovalForAllERC1155Event,
+	TransferBatch  as TransferBatchEvent,
+	TransferSingle as TransferSingleEvent,
+	URI            as URIEvent,
+} from '../generated/ERC1155/ERC1155'
+
+import {
+	constants,
+	decimals,
+	events,
+	transactions,
+} from '@amxx/graphprotocol-utils'
+
+import {
+	fetchAccount,
+} from './fetch/account'
+
+import {
+	fetchERC721,
+	fetchERC721Token,
+	fetchERC721Operator,
+} from './fetch/erc721'
+
+import {
+	fetchERC1155,
+	fetchERC1155Token,
+	fetchERC1155Balance,
+	fetchERC1155Operator,
+	replaceURI,
+} from './fetch/erc1155'
 
 export function handleTransfer(event: TransferEvent): void {
-  log.debug('Transfer detected. From: {} | To: {} | TokenID: {}', [
-    event.params.from.toHexString(),
-    event.params.to.toHexString(),
-    event.params.tokenId.toHexString(),
-  ]);
+	let contract = fetchERC721(event.address)
+	if (contract != null) {
+		let token = fetchERC721Token(contract, event.params.tokenId)
+		let from  = fetchAccount(event.params.from)
+		let to    = fetchAccount(event.params.to)
 
-  let previousOwner = Account.load(event.params.from.toHexString());
-  let newOwner = Account.load(event.params.to.toHexString());
-  let token = Token.load(event.params.tokenId.toHexString());
-  let transferId = event.transaction.hash
-    .toHexString()
-    .concat(':'.concat(event.transactionLogIndex.toHexString()));
-  let transfer = Transfer.load(transferId);
-  let contract = Contract.load(event.address.toHexString());
-  let instance = ERC721.bind(event.address);
+		token.owner = to.id
 
-  if (previousOwner == null) {
-    previousOwner = new Account(event.params.from.toHexString());
+		contract.save()
+		token.save()
 
-    previousOwner.balance = BIGINT_ZERO;
-  } else {
-    let prevBalance = previousOwner.balance;
-    if (prevBalance > BIGINT_ZERO) {
-      previousOwner.balance = prevBalance - BIGINT_ONE;
-    }
-  }
+		let ev         = new ERC721Transfer(events.id(event))
+		ev.emitter     = contract.id
+		ev.transaction = transactions.log(event).id
+		ev.timestamp   = event.block.timestamp
+		ev.contract    = contract.id
+		ev.token       = token.id
+		ev.from        = from.id
+		ev.to          = to.id
+		ev.save()
+	}
+}
 
-  if (newOwner == null) {
-    newOwner = new Account(event.params.to.toHexString());
-    newOwner.balance = BIGINT_ONE;
-  } else {
-    let prevBalance = newOwner.balance;
-    newOwner.balance = prevBalance + BIGINT_ONE;
-  }
+export function handleApproval(event: ApprovalEvent): void {
+	let contract = fetchERC721(event.address)
+	if (contract != null) {
+		let token    = fetchERC721Token(contract, event.params.tokenId)
+		let owner    = fetchAccount(event.params.owner)
+		let approved = fetchAccount(event.params.approved)
 
-  if (token == null) {
-    token = new Token(event.params.tokenId.toHexString());
-    token.contract = event.address.toHexString();
+		token.owner    = owner.id
+		token.approval = approved.id
 
-    let uri = instance.try_tokenURI(event.params.tokenId);
-    if (!uri.reverted) {
-      token.uri = uri.value;
-    }
-  }
+		token.save()
+		owner.save()
+		approved.save()
 
-  token.account = event.params.to.toHexString();
+		// let ev = new Approval(events.id(event))
+		// ev.emitter     = contract.id
+		// ev.transaction = transactions.log(event).id
+		// ev.timestamp   = event.block.timestamp
+		// ev.token       = token.id
+		// ev.owner       = owner.id
+		// ev.approved    = approved.id
+		// ev.save()
+	}
+}
 
-  if (transfer == null) {
-    transfer = new Transfer(transferId);
-    transfer.token = event.params.tokenId.toHexString();
-    transfer.from = event.params.from.toHexString();
-    transfer.to = event.params.to.toHexString();
-    transfer.timestamp = event.block.timestamp;
-    transfer.block = event.block.number;
-    transfer.transactionHash = event.transaction.hash.toHexString();
-  }
+export function handleApprovalForAll(event: ApprovalForAllEvent): void {
+	let contract = fetchERC721(event.address)
+	if (contract != null) {
+		let owner      = fetchAccount(event.params.owner)
+		let operator   = fetchAccount(event.params.operator)
+		let delegation = fetchERC721Operator(contract, owner, operator)
 
-  if (contract == null) {
-    contract = new Contract(event.address.toHexString());
-  }
+		delegation.approved = event.params.approved
 
-  let name = instance.try_name();
-  if (!name.reverted) {
-    contract.name = name.value;
-  }
+		delegation.save()
 
-  let symbol = instance.try_symbol();
-  if (!symbol.reverted) {
-    contract.symbol = symbol.value;
-  }
+		// 	let ev = new ApprovalForAll(events.id(event))
+		// 	ev.emitter     = contract.id
+		// 	ev.transaction = transactions.log(event).id
+		// 	ev.timestamp   = event.block.timestamp
+		// 	ev.delegation  = delegation.id
+		// 	ev.owner       = owner.id
+		// 	ev.operator    = operator.id
+		// 	ev.approved    = event.params.approved
+		// 	ev.save()
+	}
+}
 
-  let totalSupply = instance.try_totalSupply();
-  if (!totalSupply.reverted) {
-    contract.totalSupply = totalSupply.value;
-  }
+function registerTransfer(
+	event:    ethereum.Event,
+	suffix:   string,
+	contract: ERC1155Contract,
+	operator: Account,
+	from:     Account,
+	to:       Account,
+	id:       BigInt,
+	value:    BigInt)
+: void
+{
+	let token      = fetchERC1155Token(contract, id)
+	let ev         = new ERC1155Transfer(events.id(event).concat(suffix))
+	ev.emitter     = token.contract
+	ev.transaction = transactions.log(event).id
+	ev.timestamp   = event.block.timestamp
+	ev.contract    = contract.id
+	ev.token       = token.id
+	ev.operator    = operator.id
+	ev.value       = decimals.toDecimals(value)
+	ev.valueExact  = value
 
-  previousOwner.save();
-  newOwner.save();
-  token.save();
-  contract.save();
-  transfer.save();
+	if (from.id == constants.ADDRESS_ZERO) {
+		let totalSupply        = fetchERC1155Balance(token, null)
+		totalSupply.valueExact = totalSupply.valueExact.plus(value)
+		totalSupply.value      = decimals.toDecimals(totalSupply.valueExact)
+		totalSupply.save()
+	} else {
+		let balance            = fetchERC1155Balance(token, from)
+		balance.valueExact     = balance.valueExact.minus(value)
+		balance.value          = decimals.toDecimals(balance.valueExact)
+		balance.save()
+
+		ev.from                = from.id
+		ev.fromBalance         = balance.id
+	}
+
+	if (to.id == constants.ADDRESS_ZERO) {
+		let totalSupply        = fetchERC1155Balance(token, null)
+		totalSupply.valueExact = totalSupply.valueExact.minus(value)
+		totalSupply.value      = decimals.toDecimals(totalSupply.valueExact)
+		totalSupply.save()
+	} else {
+		let balance            = fetchERC1155Balance(token, to)
+		balance.valueExact     = balance.valueExact.plus(value)
+		balance.value          = decimals.toDecimals(balance.valueExact)
+		balance.save()
+
+		ev.to                  = to.id
+		ev.toBalance           = balance.id
+	}
+
+	token.save()
+	ev.save()
+}
+
+export function handleTransferSingle(event: TransferSingleEvent): void
+{
+	let contract = fetchERC1155(event.address)
+	let operator = fetchAccount(event.params.operator)
+	let from     = fetchAccount(event.params.from)
+	let to       = fetchAccount(event.params.to)
+
+	registerTransfer(
+		event,
+		"",
+		contract,
+		operator,
+		from,
+		to,
+		event.params.id,
+		event.params.value
+	)
+}
+
+export function handleTransferBatch(event: TransferBatchEvent): void
+{
+	let contract = fetchERC1155(event.address)
+	let operator = fetchAccount(event.params.operator)
+	let from     = fetchAccount(event.params.from)
+	let to       = fetchAccount(event.params.to)
+
+	let ids    = event.params.ids
+	let values = event.params.values
+
+	// If this equality doesn't hold (some devs actually don't follox the ERC specifications) then we just can't make
+	// sens of what is happening. Don't try to make something out of stupid code, and just throw the event. This
+	// contract doesn't follow the standard anyway.
+	if(ids.length == values.length)
+	{
+		for (let i = 0;  i < ids.length; ++i)
+		{
+			registerTransfer(
+				event,
+				"/".concat(i.toString()),
+				contract,
+				operator,
+				from,
+				to,
+				ids[i],
+				values[i]
+			)
+		}
+	}
+}
+
+export function handleApprovalForAllERC1155(event: ApprovalForAllERC1155Event): void {
+	let contract         = fetchERC1155(event.address)
+	let owner            = fetchAccount(event.params.account)
+	let operator         = fetchAccount(event.params.operator)
+	let delegation       = fetchERC1155Operator(contract, owner, operator)
+	delegation.approved  = event.params.approved
+	delegation.save()
+}
+
+export function handleURI(event: URIEvent): void
+{
+	let contract = fetchERC1155(event.address)
+	let token    = fetchERC1155Token(contract, event.params.id)
+	token.uri    = replaceURI(event.params.value, event.params.id)
+	token.save()
 }
